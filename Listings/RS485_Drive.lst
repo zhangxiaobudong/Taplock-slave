@@ -1,0 +1,281 @@
+C51 COMPILER V9.54   RS485_DRIVE                                                           10/06/2023 11:01:56 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE RS485_DRIVE
+OBJECT MODULE PLACED IN .\Objects\RS485_Drive.obj
+COMPILER INVOKED BY: E:\Keil_v4\C51\BIN\C51.EXE C and H\RS485_Drive.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\C and H) DEBUG O
+                    -BJECTEXTEND PRINT(.\Listings\RS485_Drive.lst) OBJECT(.\Objects\RS485_Drive.obj)
+
+line level    source
+
+   1          #include "all.h"
+   2          
+   3          u8  xdata RS485_Up_Num_Buffer[15]=0;
+   4          u8  xdata RS485_Flag=0;
+   5          bit idata RS485_Busy=0;
+   6          u8  xdata RxLen=0;
+   7          u16 xdata send_cnt=0;
+   8          bit idata Slave_NO_ONE=1;
+   9          u8  xdata Front_Device_Return=0;
+  10          u8  xdata Current_Device_Return=0;
+  11          u8  xdata Data_END_Flag=0;
+  12          
+  13          void RS485_Init()
+  14          {
+  15   1              SCON=0x50;
+  16   1              AUXR|=0x05;     
+  17   1              T2H=0xFC;
+  18   1              T2L=0xF3;
+  19   1              AUXR|=0x10;     
+  20   1              
+  21   1              ES=1;
+  22   1              EA=1;
+  23   1              
+  24   1              RS485_ReadWrite=RS485_RX;
+  25   1              if(EEPROM_Read_Byte_Drive(4,1) == 1)
+  26   1              {
+  27   2                      Slave_NO_ONE=1;
+  28   2              }
+  29   1              else
+  30   1              {
+  31   2                      Slave_NO_ONE=0;
+  32   2              }
+  33   1      }
+  34          
+  35          void RS485_Rountine() interrupt 4
+  36          {
+  37   1              if(RI)
+  38   1              {
+  39   2                      RI=0;
+  40   2                      RS485_Busy=1;
+  41   2                      RS485_Up_Num_Buffer[RxLen]=SBUF;
+  42   2                      RxLen++;
+  43   2                      send_cnt=0;
+  44   2              }
+  45   1              else  if(TI)
+  46   1              {
+  47   2                      TI=0;
+  48   2                      RS485_Flag=1;
+  49   2              }                       
+  50   1      }
+  51          void RS485_TX_Drive()   //RS485·¢ËÍµ×²ãº¯Êý
+  52          {
+  53   1              static u8 xdata count=0,num=0;
+  54   1      //      if(RS485_Flag==1)
+C51 COMPILER V9.54   RS485_DRIVE                                                           10/06/2023 11:01:56 PAGE 2   
+
+  55   1      //      {
+  56   1                      RS485_ReadWrite=RS485_TX;
+  57   1                      count++;
+  58   1                      switch(count)
+  59   1                      {       //RS485´Ó½ÓÊÕ×´Ì¬ÇÐ»»µ½·¢ËÍ×´Ì¬£¬ÐèÒªÑÓ³Ù£¬ËùÒÔ´Ó¼ÆÊý11¿ªÊ¼
+  60   2                              case 11:SBUF=0xB4;RS485_Flag=0; break;
+  61   2                              case 12:SBUF=0xD3;RS485_Flag=0; break;
+  62   2                              case 13:SBUF=EEPROM_Read_Byte_Drive(4,0);RS485_Flag=0; break;   //´Ó»ú×é±ð
+  63   2                              case 14:SBUF=EEPROM_Read_Byte_Drive(4,1);RS485_Flag=0; break;   //Ö÷»úID
+  64   2                              case 15:SBUF=Key_Save;RS485_Flag=0;break;       //°´¼üÖ¸Áî
+  65   2                                               
+  66   2                              case 16:
+  67   2      //                                      if(Key_Save==Cmd_Data || Key_Save==Cmd_Data_End)        //ÔËÐÐ´ÎÊý
+  68   2      //                                      {
+  69   2                                                      SBUF=Run_Num;
+  70   2                                                      RS485_Flag=0;
+  71   2      //                                      } 
+  72   2                                              break;  
+  73   2                              case 17:
+  74   2      //                                      if(Key_Save==Cmd_Data)  //¹ÊÕÏÂë
+  75   2      //                                      {
+  76   2                                                      SBUF=Run_State;
+  77   2                                                      RS485_Flag=0;
+  78   2      //                                      } 
+  79   2                                              break;
+  80   2                              case 18:if(Key_Save==Cmd_Data && Run_Num==Set_Num2)     //»ô¶ûµçÁ÷(³ö)
+  81   2                                              {
+  82   3                                                      if(Hall_Open==Open)
+  83   3                                                              SBUF=Hall_Current_Buf[0];
+  84   3                                                      else if(Hall_Open==Close)
+  85   3                                                              SBUF=0;
+  86   3                                                      RS485_Flag=0;
+  87   3                                              } 
+  88   2                                              else
+  89   2                                              {
+  90   3                                                      count=22;//Ö±½ÓÌø×ªµ½·¢ËÍ0D  0A
+  91   3                                              }
+  92   2                                              break;
+  93   2                              case 19:if(Key_Save==Cmd_Data && Run_Num==Set_Num2)     //»ô¶ûµçÁ÷(½ø)
+  94   2                                              {
+  95   3                                                      if(Hall_Open==Open)
+  96   3                                                              SBUF=Hall_Current_Buf[1];
+  97   3                                                      else if(Hall_Open==Close)
+  98   3                                                              SBUF=0;
+  99   3                                                      RS485_Flag=0;
+ 100   3                                              } 
+ 101   2                                              break;
+ 102   2                              case 20:if(Key_Save==Cmd_Data && Run_Num==Set_Num2)     //µçÁ÷»ù×¼Öµ
+ 103   2                                              {
+ 104   3                                                      SBUF=ADC_Reference;
+ 105   3                                                      RS485_Flag=0;
+ 106   3                                              } 
+ 107   2                                              break;
+ 108   2                              case 21:if(Key_Save==Cmd_Data && Run_Num==Set_Num2)     //»ô¶ûµçÁ÷
+ 109   2                                              {
+ 110   3                                                      SBUF=Motor_Current_Buf[num];
+ 111   3                                                      RS485_Flag=0;
+ 112   3                                                      num++;
+ 113   3                                                      if(num<Current_type)    
+ 114   3                                                      {
+ 115   4                                                              count=20;               //µÈ»áÔÙ½øÀ´+1ºóÔÙ´Î»Øµ½ÕâÀï£¬Ñ­»··¢ËÍ
+ 116   4                                                      }
+C51 COMPILER V9.54   RS485_DRIVE                                                           10/06/2023 11:01:56 PAGE 3   
+
+ 117   3                                                      else
+ 118   3                                                      {
+ 119   4                                                              num=0;  //ÇåÁã£¬²»Ó°ÏìÏÂÒ»ÂÖÊý¾Ý·¢ËÍ
+ 120   4                                                      }
+ 121   3                                              } 
+ 122   2                                              break;          
+ 123   2                              case 22:SBUF=0x0D;RS485_Flag=0; break;  //»Ø³µ
+ 124   2                              case 23:SBUF=0x0A;RS485_Flag=0; break;  //»»ÐÐ
+ 125   2      
+ 126   2                              case 24:count=0;RS485_Flag=0;RS485_ReadWrite=RS485_RX;break;
+ 127   2                      }
+ 128   1      //      }
+ 129   1      }
+ 130          void RS485_RX_Drive()   //RS485½ÓÊÕµ×²ãº¯Êý
+ 131          {
+ 132   1              u8 i;
+ 133   1              
+ 134   1              send_cnt++;    //Ö»ÒªÓÐÊý¾Ý½ÓÊÕ£¬send_cntÃ¿´Î¶¼±»´®¿ÚÖÐ¶ÏÇåÁã
+ 135   1              if(send_cnt>200)   //ÑÓÊ±Ò»¶ÎÊ±¼ä£¬È·ÈÏ»º³åÇøÃ»ÓÐ¼ÌÐø½ÓÊÜÊý¾Ý
+ 136   1              {
+ 137   2                      send_cnt=0;
+ 138   2                      RS485_Busy=0;
+ 139   2                      RxLen=0;
+ 140   2                      for(i=0;i<7;i++)
+ 141   2                      {
+ 142   3                              //¼ìÑéÊý¾ÝÍ·(Ö÷ D6  F7) HºÍÎ²(0D  0A)
+ 143   3                              if(RS485_Up_Num_Buffer[i]==0xD6 && RS485_Up_Num_Buffer[i+1]==0xF7 && RS485_Up_Num_Buffer[i+5]==0x0D && 
+             -RS485_Up_Num_Buffer[i+6]==0x0A)
+ 144   3                              {
+ 145   4                                      switch(RS485_Up_Num_Buffer[i+4])
+ 146   4                                      {
+ 147   5                                              case Cmd_RUN:break;             //¿ªÊ¼ÔËÐÐ³É¹¦,NÃëºó¿ªÊ¼Ñ¯ÎÊÊÇ·ñÍê³É
+ 148   5                                              case Cmd_STOP:break;            //Í£Ö¹ÔËÐÐ³É¹¦,Í£Ö¹Ñ¯ÎÊ 
+ 149   5                                              case Cmd_Version:       
+ 150   5                                                              {
+ 151   6                                                                      if(Run_Flag==0) //Í£Ö¹×´Ì¬²ÅÄÜÇÐ»»°æ±¾
+ 152   6                                                                      {
+ 153   7                                                                              Version %= 3;
+ 154   7                                                                              Version++;
+ 155   7                                                                              EEPROM_Wipe512_Drive(2);
+ 156   7                                                                              EEPROM_Write_Byte_Drive(2,0,Version);
+ 157   7                                                                              switch(Version)
+ 158   7                                                                              {
+ 159   8                                                                                      case 1: Run_Timer=30;                           //30*10=300MSÔËÐÐÊ±¼ä
+ 160   8                                                                                                      Stop_Timer=50;                          //80*10=800MSÍ£Ö¹Ê±¼ä
+ 161   8                                                                                                      Stable_Motor_Current=800;       //µç»úÎÈ¶¨µçÁ÷
+ 162   8                                                                                                      Hall_Open=Open;                 //ÊÇ·ñ´ò¿ª»ô¶ûµçÁ÷¼ì²â
+ 163   8                                                                                                      Motor_Open=Open;                //ÊÇ·ñ´ò¿ªµç»úµçÁ÷¼ì²â
+ 164   8                                                                                                      Hall_KEY=Open;                  //ÊÇ·ñ´ò¿ª»ô¶û¿ª¹Ø¼ì²â
+ 165   8                                                                                                      break;
+ 166   8                                                                                      case 2: Run_Timer=80;                           //80*10=800MSÔËÐÐÊ±¼ä
+ 167   8                                                                                                      Stop_Timer=20;                          //20*10=200MSÍ£Ö¹Ê±¼ä
+ 168   8                                                                                                      Stable_Motor_Current=550;       //µç»úÎÈ¶¨µçÁ÷
+ 169   8                                                                                                      Hall_Open=Open;                 //ÊÇ·ñ´ò¿ª»ô¶ûµçÁ÷¼ì²â
+ 170   8                                                                                                      Motor_Open=Open;                //ÊÇ·ñ´ò¿ªµç»úµçÁ÷¼ì²â
+ 171   8                                                                                                      Hall_KEY=Open;                  //ÊÇ·ñ´ò¿ª»ô¶û¿ª¹Ø¼ì²â
+ 172   8                                                                                                      break;
+ 173   8                                                                                      case 3: Run_Timer=80;                           //80*10=800MSÔËÐÐ
+ 174   8                                                                                                      Stop_Timer=20;                          //20*10=200MSÍ£Ö¹Ê±¼ä
+ 175   8                                                                                                      Stable_Motor_Current=800;       //µç»úÎÈ¶¨µçÁ÷
+ 176   8                                                                                                      Hall_Open=Close;                //ÊÇ·ñ´ò¿ª»ô¶ûµçÁ÷¼ì²â
+ 177   8                                                                                                      Motor_Open=Open;                //ÊÇ·ñ´ò¿ªµç»úµçÁ÷¼ì²â
+C51 COMPILER V9.54   RS485_DRIVE                                                           10/06/2023 11:01:56 PAGE 4   
+
+ 178   8                                                                                                      Hall_KEY=Open;                  //ÊÇ·ñ´ò¿ª»ô¶û¿ª¹Ø¼ì²â
+ 179   8                                                                                                      break;
+ 180   8                                                                              }
+ 181   7                                                                              if(Slave_NO_ONE)        //Éè±¸1ºÅ»ú´úÌæ·´À¡
+ 182   7                                                                              {
+ 183   8                                                                                      RS485_Flag=1;                   //Ó¦´ðÖ÷»ú
+ 184   8                                                                                      Key_Save = Cmd_V_YES;   //ÇÐ»»°æ±¾³É¹¦
+ 185   8                                                                              }
+ 186   7                                                                      }
+ 187   6                                                                      else                    //²»ÊÇÍ£Ö¹×´Ì¬£¬ÉÏ±¨ÇÐ»»°æ±¾Ê§°Ü
+ 188   6                                                                      {
+ 189   7                                                                              if(Slave_NO_ONE)        //Éè±¸1ºÅ»ú´úÌæ·´À¡
+ 190   7                                                                              {
+ 191   8                                                                                      RS485_Flag=1;                   //Ó¦´ðÖ÷»ú
+ 192   8                                                                                      Key_Save = Cmd_V_NO;    //ÇÐ»»°æ±¾Ê§°Ü
+ 193   8                                                                              }
+ 194   7                                                                      }
+ 195   6                                                              }
+ 196   5                                                              break;
+ 197   5                                              case Cmd_Data:
+ 198   5                                                              RS485_Num++;
+ 199   5                                                              if(RS485_Up_Num_Buffer[i+3]==EEPROM_Read_Byte_Drive(4,1))//·µ»ØµÄÊÇµ±Ç°Éè±¸Êý¾Ý£¬Í£Ö¹END¼ÆÊý
+ 200   5                                                              {  
+ 201   6                                                                      if(RS485_Up_Num_Buffer[i+3]==10)        //µÚ10¸öÊý¾Ý´«ÊäÍê±Ï,·¢ËÍ½áÊøÃüÁî
+ 202   6                                                                      {
+ 203   7                                                                              Current_Device_Return=2;
+ 204   7                                                                      }
+ 205   6                                                                      else                                                            //²»ÊÇµÚ10¸öÊý¾Ý£¬µÈ´ý½áÊøÃüÁî
+ 206   6                                                                      {
+ 207   7                                                                              Current_Device_Return=1;                                                                        
+ 208   7                                                                      }
+ 209   6                                                              }
+ 210   5                                                              else if(RS485_Up_Num_Buffer[i+3]+1==EEPROM_Read_Byte_Drive(4,1))//ÉÏÒ»¸ö´«Êä½áÊø£¬×¼±¸´«ÊäÏÂÒ»¸öÊý¾
+             -Ý
+ 211   5                                                              {
+ 212   6                                                                      Front_Device_Return=1;  //µÈ´ýËøÅÜÍê100´Î»òÕß200´Î                                                                              
+ 213   6                                                              }
+ 214   5                                                              break;
+ 215   5                                      }       
+ 216   4                                      break;  //Ìø³öforÑ­»·
+ 217   4                              }
+ 218   3                                      //¼ìÑéÊý¾ÝÍ·(´Ó B4  D3) HºÍÎ²(0D  0A)
+ 219   3                              else if(RS485_Up_Num_Buffer[i]==0xB4 && RS485_Up_Num_Buffer[i+1]==0xD3 && RS485_Up_Num_Buffer[i+7]==0x0
+             -D && RS485_Up_Num_Buffer[i+8]==0x0A)
+ 220   3                              {
+ 221   4                                      switch(RS485_Up_Num_Buffer[i+4])
+ 222   4                                      {
+ 223   5                                              case Cmd_RUN:Read_Byte_key=KEY_S;break;         //¿ªÊ¼ÔËÐÐ³É¹¦,NÃëºó¿ªÊ¼Ñ¯ÎÊÊÇ·ñÍê³É                                                                    
+ 224   5                                              case Cmd_STOP:Read_Byte_key=KEY_M;break;        //Í£Ö¹ÔËÐÐ³É¹¦,Í£Ö¹Ñ¯ÎÊ                                                                 
+ 225   5      //                                              case Cmd_V_YES:break;                                   //ÇÐ»»°æ±¾³É¹¦
+ 226   5      //                                              case Cmd_V_NO:break;                                    //ÇÐ»»°æ±¾Ê§°Ü                                                                  
+ 227   5      //                                      case Cmd_Data:Data_count=Data_Clear;break;      //ÆäËû´Ó»ú´«ÊäÊý¾Ý
+ 228   5      //                                              case Cmd_NO_ID:break;                                   //ÆäËû´Ó»úÃ»ÓÐ²åÈëËø
+ 229   5                                              case Cmd_Data_End:Data_END_Flag=1;break;//½ÓÊÕµ½Êý¾ÝÉÏ´«Íê±ÏÖ¸Áî
+ 230   5                                      }
+ 231   4                                      break;  //Ìø³öforÑ­»·                           
+ 232   4                              }
+ 233   3                      }
+ 234   2              }
+ 235   1      }
+ 236          void RS485_Data_Drive()//RS485Êý¾Ý´¦Àí
+ 237          {
+C51 COMPILER V9.54   RS485_DRIVE                                                           10/06/2023 11:01:56 PAGE 5   
+
+ 238   1              if(RS485_Busy==1)  //ËµÃ÷Ä¿Ç°´®¿ÚÕýÔÚ½ÓÊÕÊý¾Ý£¬²»Òª¶Á»º³åÇøÊý¾Ý
+ 239   1              {
+ 240   2                      RS485_RX_Drive();       //RS485½ÓÊÕµ×²ãº¯Êý             
+ 241   2              }
+ 242   1              else if(RS485_Flag==1)  //Ã»ÓÐ½ÓÊÕÊý¾Ý£¬ËæÊ±×¼±¸·¢ËÍÊý¾ÝÖ¸Áî    
+ 243   1              {
+ 244   2                      RS485_TX_Drive();       //RS485·¢ËÍµ×²ãº¯Êý
+ 245   2              }
+ 246   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    947    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     24    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

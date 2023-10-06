@@ -1,0 +1,69 @@
+C51 COMPILER V9.54   ADC_DRIVE                                                             10/06/2023 11:01:55 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE ADC_DRIVE
+OBJECT MODULE PLACED IN .\Objects\ADC_Drive.obj
+COMPILER INVOKED BY: E:\Keil_v4\C51\BIN\C51.EXE C and H\ADC_Drive.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\C and H) DEBUG OBJ
+                    -ECTEXTEND PRINT(.\Listings\ADC_Drive.lst) OBJECT(.\Objects\ADC_Drive.obj)
+
+line level    source
+
+   1          #include "all.h"
+   2          
+   3          //bit idata Hall_Flag=0;
+   4          u16 xdata Hall_Current=0;
+   5          u32 xdata Motor_Current=0;
+   6          u8  xdata ADC_Read_Byte=0;
+   7          u8  xdata ADC_Reference=0;
+   8          
+   9          void ADC_Init()
+  10          {
+  11   1              ADC_RES=0;
+  12   1              P1ASF=0X03;
+  13   1      }
+  14          void ADC_Read_Data_Drive(u8 ADC_Write_Byte)//ADC_Write_Byte:0-检测电机电流，1-检测霍尔电流
+  15          {
+  16   1              ADC_CONTR=0xE8|ADC_Write_Byte;
+  17   1              while(1)
+  18   1              {
+  19   2                      if(ADC_CONTR&0x10)
+  20   2                              break;
+  21   2              }
+  22   1              ADC_CONTR=0;
+  23   1              ADC_Read_Byte=ADC_RES;
+  24   1      }
+  25          
+  26          void Hall_Current_Calculate()
+  27          {
+  28   1              ADC_Read_Data_Drive(Hall_Read_Current);         //捕捉霍尔电流值
+  29   1              Hall_Current = ADC_Read_Byte-ADC_Reference;     
+  30   1              Hall_Current *= 26;             //2500*1024/(100*1000)
+  31   1              Hall_Current /= ADC_Reference;  //ADC_Reference
+  32   1              if(Hall==0)  Hall_Current += 3;
+  33   1      }
+  34          void Motor_Current_Calculate()
+  35          {
+  36   1              ADC_Read_Data_Drive(Motor_Read_Current);                //捕捉电机电流值
+  37   1              Motor_Current = ADC_Read_Byte-ADC_Reference;    //ADC_Reference
+  38   1              Motor_Current *= 2125;  //2490*1024/(150*8)
+  39   1              Motor_Current /= ADC_Reference;//ADC_Reference
+  40   1              Motor_Current *= 1001;
+  41   1              Motor_Current -= 19099;
+  42   1              Motor_Current >>= 10;
+  43   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    292    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      8    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+C51 COMPILER V9.54   ADC_DRIVE                                                             10/06/2023 11:01:55 PAGE 2   
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

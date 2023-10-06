@@ -1,0 +1,506 @@
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE LOCK_DRIVE
+OBJECT MODULE PLACED IN .\Objects\Lock_Drive.obj
+COMPILER INVOKED BY: E:\Keil_v4\C51\BIN\C51.EXE C and H\Lock_Drive.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\C and H) DEBUG OB
+                    -JECTEXTEND PRINT(.\Listings\Lock_Drive.lst) OBJECT(.\Objects\Lock_Drive.obj)
+
+line level    source
+
+   1          #include "all.h"
+   2          u8  xdata RS485_Num=0;
+   3          u8  xdata Run_Flag=0;                   //运行标志
+   4          u8  xdata Run_State=0;                  //运行故障标志
+   5          u16 xdata Data_count=0;                 //运行结束计数
+   6          u8  xdata Run_OK_200=0;                 //运行200次完成标志
+   7          u16 xdata Mach_Count=0;                 //电机驱动延时计数
+   8          u8  xdata Set_Num=Set_Num2;             //设置次数
+   9          u8  xdata Run_Num=0;                    //运行记数
+  10          u8  xdata Version=3;                    //版本（1= 一代锁，  2= 二代锁，  3=三代锁）
+  11          bit idata Hall_Open;                    //是否检测霍尔电流（1=检测， 0=不检测）
+  12          bit idata Motor_Open;                   //是否检测电机电流（1=检测， 0=不检测）
+  13          bit idata Hall_KEY;                             //是否检测霍尔开关（1=检测， 0=不检测）
+  14          bit idata Limit_KEY;                    //是否检测限位开关（1=检测， 0=不检测）
+  15          u8  xdata Run_Timer;            
+  16          u8  xdata Stop_Timer;
+  17          u16 xdata Stable_Motor_Current;
+  18          u8  xdata Motor_Current_Buf[Current_type];//0-79->电机电流(进)，80-159->电机电流(出)
+  19          u8  xdata Hall_Current_Buf[2];//0->霍尔电流(进)，1->霍尔电流(出)
+  20          
+  21          void Timer0_Routine() interrupt 1 using 1
+  22          {
+  23   1              Mach_Count++;
+  24   1      }
+  25          void System_Init()              //定时5MS/30MHZ
+  26          {       
+  27   1              AUXR &= 0x7F;           //定时器时钟12T模式
+  28   1              TMOD &= 0xF0;           //设置定时器模式
+  29   1      //      TL0 = 0x58;                     //设置定时初值          //10ms
+  30   1      //      TH0 = 0x9E;                     //设置定时初值
+  31   1              
+  32   1              TL0 = 0x2C;                     //设置定时初值          //5ms
+  33   1              TH0 = 0xCF;                     //设置定时初值
+  34   1              TR0 = 1;                        //定时器0开始计时
+  35   1              ET0 = 1;
+  36   1              EA = 1;
+  37   1              
+  38   1              LED_W=LED_Close;
+  39   1              Mach1_Stop;
+  40   1              Hall=1;
+  41   1              Limit=1;
+  42   1              
+  43   1              Version = EEPROM_Read_Byte_Drive(2,0);
+  44   1              switch(Version)
+  45   1              {
+  46   2                      case 1: Run_Timer=30;                           //30*10=300MS运行时间
+  47   2                                      Stop_Timer=50;                          //80*10=800MS停止时间
+  48   2                                      Stable_Motor_Current=800;       //电机稳定电流
+  49   2                                      Hall_Open=Open;                         //是否打开霍尔电流检测
+  50   2                                      Motor_Open=Open;                        //是否打开电机电流检测
+  51   2                                      Hall_KEY=Open;                          //是否打开霍尔开关检测
+  52   2                                      break;
+  53   2                      case 2: Run_Timer=80;                           //80*10=800MS运行时间
+  54   2                                      Stop_Timer=20;                          //20*10=200MS停止时间
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 2   
+
+  55   2                                      Stable_Motor_Current=550;       //电机稳定电流
+  56   2                                      Hall_Open=Open;                         //是否打开霍尔电流检测
+  57   2                                      Motor_Open=Open;                        //是否打开电机电流检测
+  58   2                                      Hall_KEY=Open;                          //是否打开霍尔开关检测
+  59   2                                      break;
+  60   2                      case 3: Run_Timer=80;                           //80*10=800MS运行
+  61   2                                      Stop_Timer=20;                          //20*10=200MS停止时间
+  62   2                                      Stable_Motor_Current=800;       //电机稳定电流
+  63   2                                      Hall_Open=Close;                        //是否打开霍尔电流检测
+  64   2                                      Motor_Open=Open;                        //是否打开电机电流检测
+  65   2                                      Hall_KEY=Open;                          //是否打开霍尔开关检测
+  66   2                                      break;
+  67   2              }
+  68   1      }
+  69          u8 Motor_Current_Detection(u8 Fault_Code)       //电机电流检测  Fault_Code==故障码
+  70          {
+  71   1              u8 value=0;
+  72   1              static u8  xdata count=0;
+  73   1              if(Motor_Open)
+  74   1              {       
+  75   2                      Motor_Current_Calculate();      //捕获电机电流
+  76   2                      if(Motor_Current>Stable_Motor_Current)
+  77   2                      {
+  78   3                              count++;
+  79   3                              if(count>=9)
+  80   3                              {
+  81   4                                      value=Fault_Code;
+  82   4                                      return value;
+  83   4                              }
+  84   3                      }
+  85   2                      else
+  86   2                      {
+  87   3                              count=0;
+  88   3                      }                                       
+  89   2              }
+  90   1              if(Mach_Count>=Run_Timer)
+  91   1              {
+  92   2                      count=0;
+  93   2              }
+  94   1              return value;
+  95   1      }
+  96          u8 Hall_Current_Detection(u8 Dete, u8 Fault_Code, u8 Fault_Code1,u8 Fault_Code2)        //霍尔电流检测
+  97          {
+  98   1              u8 value=0;
+  99   1              if(Mach_Count > 6)
+ 100   1              {
+ 101   2                      if(Hall_KEY) 
+ 102   2                      {               
+ 103   3                              if(Hall != Dete) 
+ 104   3                              {
+ 105   4                                      value |= Fault_Code;
+ 106   4                              }
+ 107   3                      }
+ 108   2                      if(Limit_KEY) 
+ 109   2                      {               
+ 110   3                              if(Limit == Dete) 
+ 111   3                              {
+ 112   4                                      value |= Fault_Code2;
+ 113   4                              }
+ 114   3                      }
+ 115   2                      if(Hall_Open)
+ 116   2                      {
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 3   
+
+ 117   3                              Hall_Current_Calculate();       //捕获霍尔电流
+ 118   3                              if(Dete==Dete_YES)
+ 119   3                              {
+ 120   4      //                              if((Hall_Current>7) || (Hall_Current<3) )       //霍尔电流4-7MA,如果不符合则电流计数清除
+ 121   4                                      if((Hall_Current>8) || (Hall_Current<5) )       //霍尔电流5-8MA,如果不符合则电流计数清除
+ 122   4                                      {
+ 123   5                                              value |= Fault_Code1;
+ 124   5                                      }
+ 125   4                              }       
+ 126   3                              else if(Dete==Dete_NO)
+ 127   3                              {
+ 128   4      //                              if((Hall_Current>3) || (Hall_Current<1) )       //霍尔电流1-3MA,如果不符合则电流计数清除
+ 129   4                                      if((Hall_Current>4) || (Hall_Current<1) )       //霍尔电流1-4MA,如果不符合则电流计数清除
+ 130   4                                      {
+ 131   5                                              value |= Fault_Code1;
+ 132   5                                      }
+ 133   4                              }
+ 134   3                      }
+ 135   2              }
+ 136   1              return value;
+ 137   1      }
+ 138          void Mach_Run_Scan()
+ 139          {
+ 140   1              static u8 xdata Mode=0,Count_Save=0;
+ 141   1              static bit idata One_Flag=0;
+ 142   1              
+ 143   1              switch(Run_Flag)
+ 144   1              {
+ 145   2                      case 0:Mode=0;Mach_Count=0;Count_Save=0;break;
+ 146   2                      case 1: //开始时气缸动作
+ 147   2                              {       
+ 148   3                                      switch(Mode)                                                                    
+ 149   3                                      {                                                                       
+ 150   4                                              case 0: 
+ 151   4                                                      Cylinder_Ser(Rear,Open);        //打开固定气缸
+ 152   4                                                      if(Mach_Count>=Stop_Timer*2)    
+ 153   4                                                      {
+ 154   5                                                              Mode=1;                                 //进入状态1
+ 155   5                                                              Count_Save=0;
+ 156   5                                                              Mach_Count=0;                   //清除计数方便下次计数  
+ 157   5                                                      }                                       
+ 158   4                                                      break;
+ 159   4                                              case 1: 
+ 160   4                                                      Mach1_Left;//电机缩回
+ 161   4                                                      if(Count_Save != Mach_Count)    //每隔10MS检测一次
+ 162   4                                                      {
+ 163   5                                                              Count_Save = Mach_Count;
+ 164   5                                                              Motor_Current_Calculate();              //捕捉电机电流值
+ 165   5                                                              Motor_Current_Buf[Count_Save]=ADC_Read_Byte;                                                            
+ 166   5                                                      }
+ 167   4                                                      if(Mach_Count>=Run_Timer*2)                                             
+ 168   4                                                      {
+ 169   5                                                              Mode=2;                 //进入状态2
+ 170   5                                                              Count_Save=0;
+ 171   5                                                              Mach_Count=0;   //清除计数方便下次计数
+ 172   5                                                      }
+ 173   4                                                      break;
+ 174   4                                              case 2: 
+ 175   4                                                      Mach1_Stop;                             //电机停转                                                                                      
+ 176   4                                                      if(Mach_Count>=Stop_Timer*2)                    //电机停转
+ 177   4                                                      {               
+ 178   5                                                              Mode=3;                                                 //进入状态3             
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 4   
+
+ 179   5                                                              Count_Save=0;
+ 180   5                                                              Mach_Count=0;                                   //清除计数方便下次计数
+ 181   5                                                      }       
+ 182   4                                                      break;
+ 183   4                                              case 3: 
+ 184   4                                                      Cylinder_Ser(Front,Close);      //关闭限位气缸
+ 185   4                                                      Cylinder_Ser(Side,Close);       //关闭行程气缸
+ 186   4                                                      if(Mach_Count>=Stop_Timer*2)    
+ 187   4                                                      {
+ 188   5                                                              Mode=0;                                 //进入状态0
+ 189   5                                                              Mach_Count=0;                   //清除计数方便下次计数
+ 190   5                                                              Count_Save=0;
+ 191   5                                                              Run_Flag=4;                             //运行第二阶段
+ 192   5                                                      }                                       
+ 193   4                                                      break;
+ 194   4                                              }                                       
+ 195   3                              }
+ 196   2                              break;
+ 197   2                      case 2: //100次结束气缸动作
+ 198   2                              {
+ 199   3                                      switch(Mode)                                                            
+ 200   3                                      {       
+ 201   4                                              case 0://等待其他设备反应
+ 202   4                                                      if(Mach_Count>=Run_Timer*2)     
+ 203   4                                                      {
+ 204   5                                                              Mode=1;                 //进入状态1
+ 205   5                                                              Mach_Count=0;   //清除计数方便下次计数
+ 206   5                                                      }
+ 207   4                                                      break;
+ 208   4                                              case 1:                 
+ 209   4                                                      Cylinder_Ser(Side,Open);        //打开行程气缸
+ 210   4                                                      if(Mach_Count>=Run_Timer*2)     
+ 211   4                                                      {
+ 212   5                                                              Mode=2;                 //进入状态2
+ 213   5                                                              Mach_Count=0;   //清除计数方便下次计数
+ 214   5                                                      }
+ 215   4                                                      break;
+ 216   4                                              case 2: 
+ 217   4                                                      Cylinder_Ser(Front,Open);       //打开限位气缸
+ 218   4                                                      Cylinder_Ser(Rear,Open);        //打开固定气缸
+ 219   4                                                      if(Mach_Count>=Run_Timer*2)     
+ 220   4                                                      {
+ 221   5                                                              Mode=0;                 //进入状态0
+ 222   5                                                              Mach_Count=0;   //清除计数方便下次计数
+ 223   5                                                              Run_Flag=4;                                     //运行第二阶段
+ 224   5                                                      }
+ 225   4                                                      break;
+ 226   4                                      }                                       
+ 227   3                              }
+ 228   2                              break;
+ 229   2                      case 3: //200次结束气缸动作
+ 230   2                              {       
+ 231   3                                      if(One_Flag==0) //按键停止第一次需进入清理Mode
+ 232   3                                      {
+ 233   4                                              One_Flag=1;
+ 234   4                                              Mode=0;
+ 235   4                                      }
+ 236   3                                      else
+ 237   3                                      {
+ 238   4                                              switch(Mode)                                                            
+ 239   4                                              {       
+ 240   5                                                      case 0://等待其他设备反应
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 5   
+
+ 241   5                                                              if(Mach_Count>=Run_Timer*2)     
+ 242   5                                                              {
+ 243   6                                                                      Mode=1;                 //进入状态1
+ 244   6                                                                      Mach_Count=0;   //清除计数方便下次计数
+ 245   6                                                                      Count_Save=0;
+ 246   6                                                              }
+ 247   5                                                              break;
+ 248   5                                                      case 1: 
+ 249   5                                                              Cylinder_Ser(Front,Close);      //关闭硬限位气缸
+ 250   5                                                              Cylinder_Ser(Rear,Close);       //关闭固定气缸
+ 251   5                                                              Mach1_Left;                                     //电机缩回
+ 252   5                                                              if(Mach_Count>=Run_Timer*2)     //电机缩回
+ 253   5                                                              {
+ 254   6                                                                      Mode=2;                                 //进入状态1
+ 255   6                                                                      Mach_Count=0;                   //清除计数方便下次计数                                          
+ 256   6                                                              }                                       
+ 257   5                                                              break;
+ 258   5                                                      case 2:         
+ 259   5                                                              Mach1_Stop;                                             //电机停转      
+ 260   5                                                              if(Mach_Count>=Stop_Timer*2)            //电机停转
+ 261   5                                                              {               
+ 262   6                                                                      Mode=3;                                         //进入状态2
+ 263   6                                                                      Mach_Count=0;                           //清除计数方便下次计数
+ 264   6                                                              }
+ 265   5                                                              break;
+ 266   5                                                      case 3: 
+ 267   5                                                              Cylinder_Ser(Side,Close);       //关闭行程气缸
+ 268   5                                                              if(Mach_Count>=Stop_Timer*2)    
+ 269   5                                                              {
+ 270   6                                                                      Mode=4;                 //进入状态3
+ 271   6                                                                      Mach_Count=0;   //清除计数方便下次计数
+ 272   6                                                              }
+ 273   5                                                              break;
+ 274   5                                                      case 4: 
+ 275   5                                                              Mach1_Right;
+ 276   5                                                              if(Mach_Count>=Run_Timer*2)     //电机伸出
+ 277   5                                                              {
+ 278   6                                                                      Mode=5;                 //进入状态4
+ 279   6                                                                      Mach_Count=0;   //清除计数方便下次计数
+ 280   6                                                              }
+ 281   5                                                              break;
+ 282   5                                                      case 5: 
+ 283   5                                                              Mach1_Stop;                             //电机停转                                                                                      
+ 284   5                                                              if(Mach_Count>=Stop_Timer*2)                    //电机停转
+ 285   5                                                              {               
+ 286   6                                                                      Mode=0;                                                 //进入状态0                             
+ 287   6                                                                      Mach_Count=0;                                   //清除计数方便下次计数                                                          
+ 288   6                                                                      Run_Flag=0;
+ 289   6                                                                      One_Flag=0;
+ 290   6                                                                      if(Run_Num>=Set_Num2)
+ 291   6                                                                              Run_OK_200=1;                                   //运行完成标志                                                          
+ 292   6                                                              }       
+ 293   5                                                              break;                  
+ 294   5                                                      }               
+ 295   4                                              }
+ 296   3                              }
+ 297   2                              break;
+ 298   2                      case 4: //循环运行
+ 299   2                              {       
+ 300   3                                      switch(Mode)                                                            
+ 301   3                                      {                       
+ 302   4                                              case 0: 
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 6   
+
+ 303   4                                                      Mach1_Right;                                            //电机伸出
+ 304   4                                                      if(Count_Save != Mach_Count)    //每隔10MS检测一次
+ 305   4                                                      {
+ 306   5                                                              Count_Save = Mach_Count;
+ 307   5                                                              Run_State |= Motor_Current_Detection(0x10);//电机电流检测
+ 308   5                                                      }                                               
+ 309   4                                                      if(Mach_Count>=Run_Timer*2)     //电机缩回
+ 310   4                                                      {
+ 311   5                                                              Mode=1;                                 //进入状态1
+ 312   5                                                              Count_Save=0;
+ 313   5                                                              Mach_Count=0;                   //清除计数方便下次计数                                                  
+ 314   5                                                      }                                       
+ 315   4                                                      break;
+ 316   4                                              case 1:         
+ 317   4                                                      Mach1_Stop;                                             //电机停转      
+ 318   4                                                      if(Count_Save != Mach_Count)    //每隔10MS检测一次
+ 319   4                                                      {
+ 320   5                                                              Count_Save = Mach_Count;
+ 321   5                                                              Run_State |= Hall_Current_Detection(Dete_NO, 0x01, 0x04, 0x40);//霍尔电流检测
+ 322   5      //                                                      Run_State |= Hall_Current_Detection(Dete_NO, 0x01, 0x04, 0x00);//霍尔电流检测                                                   
+ 323   5                                                              if(Run_Num==0)
+ 324   5                                                              {
+ 325   6                                                                      Hall_Current_Buf[0]=Hall_Current;
+ 326   6                                                              }
+ 327   5                                                      }       
+ 328   4                                                      
+ 329   4                                                      if(Mach_Count>=Stop_Timer*2)                    //电机停转
+ 330   4                                                      {               
+ 331   5                                                              Mode=2;                                                 //进入状态2
+ 332   5                                                              Count_Save=0;
+ 333   5                                                              Mach_Count=0;                                   //清除计数方便下次计数
+ 334   5                                                      }
+ 335   4                                                      break;
+ 336   4                                              case 2: 
+ 337   4                                                      Mach1_Left;//电机缩回   
+ 338   4                                                      if(Count_Save != Mach_Count)    //每隔10MS检测一次
+ 339   4                                                      {
+ 340   5                                                              Count_Save = Mach_Count;
+ 341   5                                                              Run_State |= Motor_Current_Detection(0x20);//电机电流检测
+ 342   5                                                      }
+ 343   4                                                      if(Mach_Count>=Run_Timer*2)                                             
+ 344   4                                                      {
+ 345   5                                                              Mode=3;                 //进入状态3
+ 346   5                                                              Count_Save=0;
+ 347   5                                                              Mach_Count=0;   //清除计数方便下次计数
+ 348   5                                                      }
+ 349   4                                                      break;
+ 350   4                                              case 3: 
+ 351   4                                                      Mach1_Stop;                             //电机停转                                                                                      
+ 352   4                                                      if(Count_Save != Mach_Count)    //每隔10MS检测一次
+ 353   4                                                      {
+ 354   5                                                              Count_Save = Mach_Count;
+ 355   5                                                              Run_State |= Hall_Current_Detection(Dete_YES, 0x02, 0x08,0x80);//霍尔电流检测
+ 356   5      //                                                      Run_State |= Hall_Current_Detection(Dete_YES, 0x02, 0x08,0x00);//霍尔电流检测
+ 357   5                                                              if(Run_Num==0)
+ 358   5                                                              {
+ 359   6                                                                      Hall_Current_Buf[1]=Hall_Current;
+ 360   6                                                              }
+ 361   5                                                      }       
+ 362   4      
+ 363   4                                                      if(Mach_Count>=Stop_Timer*2)                    //电机停转
+ 364   4                                                      {               
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 7   
+
+ 365   5                                                              Mode=4;                                                 //进入状态4             
+ 366   5                                                              Count_Save=0;
+ 367   5                                                              Mach_Count=0;                                   //清除计数方便下次计数
+ 368   5                                                      }       
+ 369   4                                                      break;          
+ 370   4                                              case 4:
+ 371   4                                                      Run_Num++;                                              //运行次数+1
+ 372   4                                                      if(Run_Num==Set_Num1 || Run_Num>=Set_Num2)      
+ 373   4                                                      {
+ 374   5                                                              Mode=5;                                                 //进入状态5
+ 375   5                                                              RS485_Num=0;
+ 376   5                                                      }
+ 377   4                                                      else
+ 378   4                                                              Mode=0;                                                 //进入状态0
+ 379   4                                                      break;
+ 380   4                                              case 5: 
+ 381   4                                                      if(Data_END_Flag)       //接收到结束命令
+ 382   4                                                      {
+ 383   5                                                              Front_Device_Return=0;
+ 384   5                                                              Mode=0;
+ 385   5                                                              Mach_Count=0;
+ 386   5                                                              if(Run_Num==Set_Num1)
+ 387   5                                                              {
+ 388   6                                                                      Run_Flag=2;     
+ 389   6                                                                      Limit_KEY=Close;
+ 390   6                                                              }
+ 391   5                                                              else if(Run_Num==Set_Num2)
+ 392   5                                                              {
+ 393   6                                                                      Run_Flag=3;                                                             
+ 394   6                                                              }
+ 395   5                                                      }
+ 396   4                                                      else if(Slave_NO_ONE || Front_Device_Return==1) //设备1号机第一个传输,或者后续设备进入等待状态
+ 397   4                                                      {
+ 398   5                                                              Mach_Count=0;
+ 399   5                                                              Mode=6; 
+ 400   5                                                              Front_Device_Return=0;
+ 401   5                                                              if((Version!=3 && Run_State==0x7E) || (Version==3 && Run_State==0x72))          //没有插入锁会报故障0x7E
+ 402   5                                                              {
+ 403   6                                                                      RS485_Flag=1;                           //应答主机
+ 404   6                                                                      Key_Save = Cmd_NO_ID;           //发送没有锁指令
+ 405   6                                                              }
+ 406   5                                                              else                                            //有插龙头锁
+ 407   5                                                              {
+ 408   6                                                                      RS485_Flag=1;                           //应答主机
+ 409   6                                                                      Key_Save = Cmd_Data;            //传输数据指令
+ 410   6                                                              }       
+ 411   5      //                                                      if(Hall==0)                     //此时锁舌在缩回状态，所以Hall==0表示有插龙头锁
+ 412   5      //                                                      {
+ 413   5      //                                                              RS485_Flag=1;                           //应答主机
+ 414   5      //                                                              Key_Save = Cmd_Data;            //传输数据指令
+ 415   5      //                                                      }
+ 416   5      //                                                      else                            //没有插龙头锁
+ 417   5      //                                                      {
+ 418   5      //                                                              RS485_Flag=1;                           //应答主机
+ 419   5      //                                                              Key_Save = Cmd_NO_ID;           //发送没有锁指令
+ 420   5      //                                                      }                                                       
+ 421   5                                                      }
+ 422   4                                                      break;
+ 423   4                                              case 6:
+ 424   4                                                      if(Current_Device_Return==1)    //当前设备已返回,等待结束命令
+ 425   4                                                      {
+ 426   5                                                              if(Data_END_Flag)               //接收到结束命令
+C51 COMPILER V9.54   LOCK_DRIVE                                                            10/06/2023 11:01:56 PAGE 8   
+
+ 427   5                                                              {
+ 428   6                                                                      Current_Device_Return=0;
+ 429   6                                                                      Data_END_Flag=0;
+ 430   6                                                                      Mode=0;
+ 431   6                                                                      Mach_Count=0;
+ 432   6                                                                      if(Run_Num==Set_Num1)
+ 433   6                                                                      {
+ 434   7                                                                              Run_Flag=2;
+ 435   7                                                                              Limit_KEY=Close;
+ 436   7                                                                      }
+ 437   6                                                                      else if(Run_Num==Set_Num2)
+ 438   6                                                                      {
+ 439   7                                                                              Run_Flag=3;                                                             
+ 440   7                                                                      }
+ 441   6                                                              }
+ 442   5                                                      }
+ 443   4                                                      else if(Mach_Count>=800 || Current_Device_Return==2)    //2秒后未返回，则发送结束命令
+ 444   4                                                      {
+ 445   5                                                              Current_Device_Return=0;
+ 446   5                                                              Mode=0;
+ 447   5                                                              Mach_Count=0;
+ 448   5                                                              if(Run_Num==Set_Num1)
+ 449   5                                                              {
+ 450   6                                                                      Run_Flag=2;     
+ 451   6                                                                      Limit_KEY=Close;
+ 452   6                                                              }
+ 453   5                                                              else if(Run_Num==Set_Num2)
+ 454   5                                                              {
+ 455   6                                                                      Run_Flag=3;                                                             
+ 456   6                                                              }
+ 457   5      //                                                      if(Slave_NO_ONE)        //设备1号机代替反馈
+ 458   5      //                                                      {
+ 459   5                                                                      RS485_Flag=1;                           //应答主机
+ 460   5                                                                      Key_Save = Cmd_Data_End;        //传输结束指令
+ 461   5      //                                                      }
+ 462   5                                                      }       
+ 463   4                                                      break;                                                  
+ 464   4                                      }                                       
+ 465   3                              }
+ 466   2                              break;
+ 467   2              }
+ 468   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1844    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    180    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       7
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      5    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

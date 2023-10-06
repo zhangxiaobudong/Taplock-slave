@@ -1,0 +1,109 @@
+C51 COMPILER V9.54   IIC_DRIVE                                                             10/06/2023 11:01:56 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE IIC_DRIVE
+OBJECT MODULE PLACED IN .\Objects\IIC_Drive.obj
+COMPILER INVOKED BY: E:\Keil_v4\C51\BIN\C51.EXE C and H\IIC_Drive.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\C and H) DEBUG OBJ
+                    -ECTEXTEND PRINT(.\Listings\IIC_Drive.lst) OBJECT(.\Objects\IIC_Drive.obj)
+
+line level    source
+
+   1          #include "all.h"
+   2          
+   3          void IIC_Init()
+   4          {
+   5   1              IIC_SDA=1;
+   6   1              IIC_SCL=1;
+   7   1      }
+   8          void IIC_delay()
+   9          {
+  10   1              _nop_();_nop_();_nop_();_nop_();_nop_();_nop_();
+  11   1              _nop_();_nop_();_nop_();_nop_();_nop_();_nop_();
+  12   1      }
+  13          void IIC_Start()
+  14          {
+  15   1              IIC_SCL=1;
+  16   1              IIC_SDA=1;
+  17   1              IIC_delay();
+  18   1              IIC_SDA=0;
+  19   1              IIC_SCL=0;
+  20   1              IIC_delay();
+  21   1      }
+  22          void IIC_Stop()
+  23          {
+  24   1              IIC_SDA=0;
+  25   1              IIC_SCL=1;
+  26   1              IIC_delay();
+  27   1              IIC_SDA=1;
+  28   1              IIC_delay();
+  29   1      }
+  30          void IIC_Write_Byte(u8 IIC_Byte)
+  31          {
+  32   1              u8 idata i;
+  33   1              IIC_SCL=0;
+  34   1              IIC_SDA=1;
+  35   1              for(i=0; i<8; i++)
+  36   1              {
+  37   2                      IIC_SDA=(bit)(IIC_Byte&0x80);
+  38   2                      IIC_Byte<<=1;
+  39   2                      IIC_SCL=1;
+  40   2                      IIC_delay();
+  41   2                      IIC_SCL=0;
+  42   2                      IIC_delay();
+  43   2              }
+  44   1              IIC_SDA=1;
+  45   1      }
+  46          //u8 IIC_Read_Byte()
+  47          //{
+  48          //      u8 idata i, Value;
+  49          //      IIC_SCL=0;
+  50          //      IIC_SDA=1;
+  51          //      for(i=0; i<8; i++)
+  52          //      {
+  53          //              Value<<=1;
+  54          //              Value|=IIC_SDA;
+C51 COMPILER V9.54   IIC_DRIVE                                                             10/06/2023 11:01:56 PAGE 2   
+
+  55          //              IIC_SCL=1;
+  56          //              IIC_delay();
+  57          //              IIC_SCL=0;
+  58          //              IIC_delay();
+  59          //      }
+  60          //      return Value;
+  61          //}
+  62          u8 IIC_Read_ACK()
+  63          {
+  64   1              u8 idata i, ack=1;
+  65   1              IIC_SCL=1;
+  66   1              IIC_delay();
+  67   1              while((ack)&&(i<5))
+  68   1              {
+  69   2                      i++;
+  70   2                      ack=IIC_SDA;
+  71   2              }
+  72   1              IIC_SCL=0;
+  73   1              return ack;
+  74   1      }
+  75          //void IIC_Write_ACK(bit ack)
+  76          //{
+  77          //      IIC_SDA=ack;
+  78          //      IIC_SCL=1;
+  79          //      IIC_delay();
+  80          //      IIC_SCL=0;
+  81          //      IIC_SDA=1;
+  82          //      IIC_delay();
+  83          //}
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    116    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----       3
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

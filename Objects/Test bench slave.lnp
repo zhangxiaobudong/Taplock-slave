@@ -1,0 +1,14 @@
+".\Objects\STARTUP.obj",
+".\Objects\ADC_Drive.obj",
+".\Objects\ASCLL.obj",
+".\Objects\Cylinder_Drive.obj",
+".\Objects\EEPROM.obj",
+".\Objects\IIC_Drive.obj",
+".\Objects\KEY_Drive.obj",
+".\Objects\LED_Drive.obj",
+".\Objects\Lock_Drive.obj",
+".\Objects\main.obj",
+".\Objects\OLED_Drive.obj",
+".\Objects\RS485_Drive.obj" 
+TO ".\Objects\Test bench slave" 
+PRINT(".\Listings\Test bench slave.m51") RAMSIZE(256) 

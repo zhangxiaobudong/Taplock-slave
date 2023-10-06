@@ -1,0 +1,256 @@
+C51 COMPILER V9.54   OLED_DRIVE                                                            10/06/2023 11:01:56 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE OLED_DRIVE
+OBJECT MODULE PLACED IN .\Objects\OLED_Drive.obj
+COMPILER INVOKED BY: E:\Keil_v4\C51\BIN\C51.EXE C and H\OLED_Drive.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\C and H) DEBUG OB
+                    -JECTEXTEND PRINT(.\Listings\OLED_Drive.lst) OBJECT(.\Objects\OLED_Drive.obj)
+
+line level    source
+
+   1          #include "all.h"
+   2          
+   3          u8 xdata OLED_Write_Buffer[2][16];
+   4          u8 xdata OLED_Modify_Allow=0;
+   5          
+   6          void OLED_Write_Reg(u8 Command)
+   7          {
+   8   1              IIC_Start();                    //起始信号
+   9   1              IIC_Write_Byte(0x78);   //从机地址
+  10   1              IIC_Read_ACK();                 //从机应答
+  11   1              IIC_Write_Byte(0x00);   //下一条指令写命令
+  12   1              IIC_Read_ACK();                 //从机应答
+  13   1              IIC_Write_Byte(Command);//命令
+  14   1              IIC_Read_ACK();                 //从机应答
+  15   1              IIC_Stop();                             //停止信号
+  16   1      }
+  17          //void OLED_Symbol_Ser(u8 dat1,dat2, show)   //显示2个字符
+  18          void OLED_Symbol_Ser(u8 dat1,dat2)   //显示2个字符
+  19          {
+  20   1              u8 i, Value1, Value2;
+  21   1              Value1=dat1-' ';                        //空字符=0x20
+  22   1              Value2=dat2-' ';                        //空字符=0x20
+  23   1              for(i=0; i<8; i++)
+  24   1              {
+  25   2      //              if(show==0)
+  26   2      //                      OLED_Write_Buffer[0][i]=~F8X16[Value1*16+i];
+  27   2      //              else
+  28   2                              OLED_Write_Buffer[0][i]=F8X16[Value1*16+i];
+  29   2              }
+  30   1              for(i=0; i<8; i++)
+  31   1              {
+  32   2      //              if(show==1)
+  33   2      //                      OLED_Write_Buffer[0][i+8]=~F8X16[Value2*16+i];
+  34   2      //              else
+  35   2                              OLED_Write_Buffer[0][i+8]=F8X16[Value2*16+i];
+  36   2              }
+  37   1              for(i=0; i<8; i++)
+  38   1              {
+  39   2      //              if(show==0)
+  40   2      //                      OLED_Write_Buffer[1][i]=~F8X16[Value1*16+8+i];
+  41   2      //              else
+  42   2                              OLED_Write_Buffer[1][i]=F8X16[Value1*16+8+i];
+  43   2              }
+  44   1              for(i=0; i<8; i++)
+  45   1              {
+  46   2      //              if(show==1)
+  47   2      //                      OLED_Write_Buffer[1][i+8]=~F8X16[Value2*16+8+i];
+  48   2      //              else
+  49   2                              OLED_Write_Buffer[1][i+8]=F8X16[Value2*16+8+i];
+  50   2              }
+  51   1      }
+  52          //void OLED_HZ_Ser(u8 dat, show)   //显示1个汉字
+  53          void OLED_HZ_Ser(u8 dat)   //显示1个汉字
+  54          {
+C51 COMPILER V9.54   OLED_DRIVE                                                            10/06/2023 11:01:56 PAGE 2   
+
+  55   1              u8 i;
+  56   1              for(i=0; i<16; i++)
+  57   1              {
+  58   2      //              if(show==0)
+  59   2      //                      OLED_Write_Buffer[0][i]=~Hzk[dat][i];
+  60   2      //              else
+  61   2                              OLED_Write_Buffer[0][i]=Hzk[dat][i];
+  62   2              }
+  63   1              for(i=0; i<16; i++)
+  64   1              {
+  65   2      //              if(show==0)
+  66   2      //                      OLED_Write_Buffer[1][i]=~Hzk[dat+1][i];
+  67   2      //              else
+  68   2                              OLED_Write_Buffer[1][i]=Hzk[dat+1][i];
+  69   2                      
+  70   2              }
+  71   1      }
+  72          void OLED_Write_Data(u8 PAGE, u8 SEG16)
+  73          {
+  74   1              u8 i;
+  75   1              OLED_Write_Reg(0xb0+PAGE);      //选择页
+  76   1              OLED_Write_Reg(0x10+SEG16);     //选择单元
+  77   1              IIC_Start();                    //起始信号
+  78   1              IIC_Write_Byte(0x78);   //从机地址
+  79   1              IIC_Read_ACK();                 //从机应答
+  80   1              IIC_Write_Byte(0x40);   //下一条指令写数据
+  81   1              IIC_Read_ACK();                 //从机应答
+  82   1              for(i=0; i<16; i++)
+  83   1              {
+  84   2                      IIC_Write_Byte(OLED_Write_Buffer[0][i]);//数据
+  85   2                      IIC_Read_ACK();         //从机应答
+  86   2              }
+  87   1              IIC_Stop();                             //停止信号
+  88   1              
+  89   1              OLED_Write_Reg(0xb0+PAGE+1);    //选择页
+  90   1              OLED_Write_Reg(0x10+SEG16);     //选择单元
+  91   1              IIC_Start();                    //起始信号
+  92   1              IIC_Write_Byte(0x78);   //从机地址
+  93   1              IIC_Read_ACK();                 //从机应答
+  94   1              IIC_Write_Byte(0x40);   //下一条指令写数据
+  95   1              IIC_Read_ACK();                 //从机应答
+  96   1              for(i=0; i<16; i++)                            
+  97   1              {
+  98   2                      IIC_Write_Byte(OLED_Write_Buffer[1][i]);//数据
+  99   2                      IIC_Read_ACK();         //从机应答
+ 100   2              }
+ 101   1              IIC_Stop();                             //停止信号
+ 102   1      }
+ 103          //void OLED_New_Show_Ser(u8 PAGE,SEG16,dat1,dat2,show)
+ 104          void OLED_New_Show_Ser(u8 PAGE,SEG16,dat1,dat2)
+ 105          {
+ 106   1              if(dat1==Data_HZ)       //缓存一个汉字数据
+ 107   1              {
+ 108   2      //              OLED_HZ_Ser(dat2,show); 
+ 109   2                      OLED_HZ_Ser(dat2);      
+ 110   2              }
+ 111   1              else                            //缓存2个字符数据
+ 112   1              {
+ 113   2      //              OLED_Symbol_Ser(dat1, dat2, show); 
+ 114   2                      OLED_Symbol_Ser(dat1, dat2); 
+ 115   2              }
+ 116   1              OLED_Write_Data(PAGE, SEG16);
+C51 COMPILER V9.54   OLED_DRIVE                                                            10/06/2023 11:01:56 PAGE 3   
+
+ 117   1      }
+ 118          void OLED_Delete()
+ 119          {
+ 120   1              u8 i, j, k;
+ 121   1              for(i=0; i<8; i++)
+ 122   1              {
+ 123   2                      for(j=0; j<8; j++)
+ 124   2                      {
+ 125   3                              OLED_Write_Reg(0xb0+i); //选择页
+ 126   3                              OLED_Write_Reg(0x10+j); //选择单元
+ 127   3                              IIC_Start();                    //起始信号
+ 128   3                              IIC_Write_Byte(0x78);   //从机地址
+ 129   3                              IIC_Read_ACK();                 //从机应答
+ 130   3                              IIC_Write_Byte(0x40);   //下一条指令写数据
+ 131   3                              IIC_Read_ACK();                 //从机应答
+ 132   3                              for(k=0; k<16; k++)
+ 133   3                              {
+ 134   4                                      IIC_Write_Byte(0);      //数据
+ 135   4                                      IIC_Read_ACK();         //从机应答
+ 136   4                              }
+ 137   3                              IIC_Stop();                             //停止信号
+ 138   3                      }
+ 139   2              }
+ 140   1      }
+ 141          void Delay200ms()               //@30.000MHz
+ 142          {
+ 143   1              unsigned char i, j, k;
+ 144   1      
+ 145   1              _nop_();
+ 146   1              _nop_();
+ 147   1              i = 23;
+ 148   1              j = 205;
+ 149   1              k = 120;
+ 150   1              do
+ 151   1              {
+ 152   2                      do
+ 153   2                      {
+ 154   3                              while (--k);
+ 155   3                      } while (--j);
+ 156   2              } while (--i);
+ 157   1      }
+ 158          void OLED_Init()
+ 159          {       
+ 160   1              OLED_RES=0;
+ 161   1              Delay200ms();
+ 162   1              OLED_RES=1;
+ 163   1              
+ 164   1              OLED_Write_Reg(0x00);
+ 165   1              
+ 166   1              OLED_Write_Reg(0x01);
+ 167   1              
+ 168   1              OLED_Write_Reg(0x81);   //设置对比度
+ 169   1              OLED_Write_Reg(0xff);   //对比度值
+ 170   1              
+ 171   1              OLED_Write_Reg(0xa4);   //显示图像
+ 172   1              
+ 173   1              OLED_Write_Reg(0xa6);   
+ 174   1              
+ 175   1              OLED_Write_Reg(0xaf);
+ 176   1              
+ 177   1              OLED_Write_Reg(0x40);
+ 178   1              
+C51 COMPILER V9.54   OLED_DRIVE                                                            10/06/2023 11:01:56 PAGE 4   
+
+ 179   1              OLED_Write_Reg(0xa1);
+ 180   1              
+ 181   1              OLED_Write_Reg(0xc8);
+ 182   1              
+ 183   1              OLED_Write_Reg(0xda);
+ 184   1              OLED_Write_Reg(0x12);
+ 185   1              
+ 186   1              OLED_Write_Reg(0xa8);
+ 187   1              OLED_Write_Reg(0x3f);
+ 188   1              
+ 189   1              OLED_Write_Reg(0xd3);
+ 190   1              OLED_Write_Reg(0x00);
+ 191   1              
+ 192   1              OLED_Write_Reg(0xd5);
+ 193   1              OLED_Write_Reg(0x00);
+ 194   1              
+ 195   1              OLED_Write_Reg(0xd9);
+ 196   1              OLED_Write_Reg(0x22);
+ 197   1              
+ 198   1              OLED_Write_Reg(0xdb);
+ 199   1              OLED_Write_Reg(0x20);
+ 200   1              
+ 201   1              OLED_Write_Reg(0x8d);
+ 202   1              OLED_Write_Reg(0x14);
+ 203   1              
+ 204   1              OLED_Write_Reg(0x20);   //寻址模式
+ 205   1              OLED_Write_Reg(0x02);   //页寻址模式
+ 206   1              
+ 207   1              OLED_Delete();          
+ 208   1              
+ 209   1              //设备
+ 210   1              OLED_New_Show_Ser(0,0,Data_HZ,0);
+ 211   1              OLED_New_Show_Ser(0,1,Data_HZ,2);
+ 212   1              //计数
+ 213   1              OLED_New_Show_Ser(2,0,Data_HZ,16);
+ 214   1              OLED_New_Show_Ser(2,1,Data_HZ,18);
+ 215   1      //      //锁码FYAMS22G7A   (XXXX)
+ 216   1      //      OLED_New_Show_Ser(4,0,0x3F,0x59);
+ 217   1      //      OLED_New_Show_Ser(4,1,0x3A,0x4D);
+ 218   1      //      OLED_New_Show_Ser(4,2,0x53,0x32);
+ 219   1      //      OLED_New_Show_Ser(4,3,0x32,0x47);
+ 220   1      //      OLED_New_Show_Ser(4,4,0x37,0x3A);
+ 221   1              //0x  (00)    合格/（不）合格
+ 222   1              OLED_New_Show_Ser(6,0,0x30,0x78);
+ 223   1              
+ 224   1              OLED_New_Show_Ser(6,6,Data_HZ,28);
+ 225   1              OLED_New_Show_Ser(6,7,Data_HZ,30);
+ 226   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    836    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     33    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      14
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
