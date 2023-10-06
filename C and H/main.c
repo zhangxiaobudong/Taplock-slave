@@ -4,6 +4,8 @@ void OLED_Allot()
 {	
 	static u8 xdata OLED_Count=0;
 	OLED_Count++;
+	OLED_Count++;
+	OLED_Count++;
 	switch(OLED_Count)
 	{		
 		case 2:OLED_New_Show_Ser(0,2,0x54,EEPROM_Read_Byte_Drive(4,0)-7);break;
