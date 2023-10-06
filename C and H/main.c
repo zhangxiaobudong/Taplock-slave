@@ -151,6 +151,10 @@ void main()
 	EEPROM_Write_Byte_Drive(4,0,'D');
 	EEPROM_Write_Byte_Drive(4,1,1);
 	
+	EEPROM_Wipe512_Drive(4);
+	EEPROM_Write_Byte_Drive(4,0,'D');
+	EEPROM_Write_Byte_Drive(4,1,1);
+	
 	while(1)
 	{
 		RS485_Data_Drive();	//RS485数据处理
